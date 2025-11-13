@@ -1,0 +1,64 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Outputs (keep structure but not files)
+outputs/*
+!outputs/.gitkeep
+
+# Documentation
+*.md
+!README.md
+
+# Scripts (not needed in container)
+*.bat
+*.sh
+!deploy.sh
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Nginx
+nginx/
+nginx.conf
+
+# Streamlit
+.streamlit/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
