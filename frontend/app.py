@@ -171,7 +171,7 @@ if st.button("✨ Generate Story", type="primary"):
                 
                 # Display image
                 caption = f"{user_name}'s Story" if language == "English" else f"قصة {user_name}"
-                st.image(story_image, caption=caption, use_container_width=True)
+                st.image(story_image, caption=caption)
                 
                 # Display story as text
                 st.markdown("### 📖 The Story:")

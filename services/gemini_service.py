@@ -14,7 +14,7 @@ class GeminiStoryService:
             raise ValueError("GEMINI_API_KEY not found in .env file")
         
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-pro')
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
     
     def generate_story(self, user_name: str, story_type: str, characters: str, 
                       events: str, language: str = "Arabic", theme: str = None) -> str:
@@ -40,28 +40,45 @@ class GeminiStoryService:
             lang_instruction = "English"
             lang_style = "Write the story in fluent, natural English"
         
-        prompt = f"""You are a professional and creative storyteller. Write an engaging interactive short story in {lang_instruction}.
+        prompt = f"""You are a professional and creative storyteller. Write a complete, coherent, and engaging short story in {lang_instruction}.
 
-Basic Requirements:
+CRITICAL REQUIREMENTS - MUST FOLLOW:
 - Main character name (the hero): {user_name}
 - Story type/genre: {story_type}
 - Other characters: {characters}
 - Main events: {events}
 {f"- Theme or idea: {theme}" if theme else ""}
 
-Creative Writing Instructions:
+STORY STRUCTURE REQUIREMENTS (VERY IMPORTANT):
 1. {lang_style}
-2. Make the story interactive and engaging with suspense elements
-3. Story length: 400-600 words (medium-length story)
-4. Use lively and natural dialogues between characters
-5. Add beautiful descriptions of scenes and places
-6. Ensure that {user_name} is the main character and central focus of the story
-7. Write the story in a beautiful narrative style with clear beginning, middle, and end
-8. Use beautiful literary language with some suspense and excitement
-9. Make the story suitable for general audience with positive values
-10. The story should match the {story_type} genre style and atmosphere
+2. The story MUST be completely coherent and follow a logical sequence from beginning to end
+3. Story length: 500-700 words (complete story)
+4. The story MUST have three clear parts:
+   - BEGINNING: Introduce {user_name} and the setting, establish the situation
+   - MIDDLE: Develop the conflict/challenge, show {user_name}'s journey and interactions with {characters}
+   - END: Resolve the story with a satisfying conclusion
+5. Events MUST flow naturally and logically - each event should connect smoothly to the next
+6. NO abrupt jumps or disconnected scenes - everything must be connected
+7. Use smooth transitions between paragraphs and scenes
 
-Start the story now with an engaging opening sentence:"""
+WRITING QUALITY REQUIREMENTS:
+8. Use lively and natural dialogues between characters
+9. Add beautiful, vivid descriptions of scenes, places, and emotions
+10. Ensure that {user_name} is ALWAYS the main character and central focus
+11. Use beautiful literary language appropriate for {story_type} genre
+12. Create suspense and excitement naturally through the story progression
+13. Make the story suitable for general audience with positive values
+14. The story MUST match the {story_type} genre style and atmosphere throughout
+
+STORY FLOW REQUIREMENTS:
+- Start with an engaging opening that introduces {user_name} and the world
+- Build the story step by step, connecting all events logically
+- Each paragraph should flow naturally into the next
+- Include the events: {events} in a natural, sequential order
+- End with a satisfying conclusion that ties everything together
+- The entire story should read as one continuous, connected narrative
+
+Write the complete story now, ensuring it is fully coherent, well-structured, and flows smoothly from start to finish:"""
 
         try:
             response = self.model.generate_content(prompt)

@@ -12,7 +12,8 @@ load_dotenv()
 class ImageGenerationService:
     def __init__(self):
         self.hf_token = os.getenv("HUGGINGFACE_API_KEY", "")
-        self.api_url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+        # Using better model for higher quality images
+        self.api_url = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
     
     def generate_story_image(self, story_text: str, user_name: str, language: str = "Arabic") -> Image.Image:
         """
@@ -43,10 +44,21 @@ class ImageGenerationService:
     
     def _extract_image_prompt(self, story_text: str) -> str:
         """Extract suitable description for image generation from story"""
-        # Take first 200 characters of story as description
-        prompt = story_text[:200].replace('\n', ' ').strip()
-        # Add keywords to improve image
-        prompt = f"beautiful illustration, story scene, {prompt}, digital art, vibrant colors"
+        # Take first 300 characters and extract key elements
+        text_snippet = story_text[:300].replace('\n', ' ').strip()
+        
+        # Create a better prompt with story elements
+        # Remove common words and focus on visual elements
+        visual_keywords = []
+        words = text_snippet.split()
+        for word in words[:20]:  # Take first 20 words
+            if len(word) > 3:  # Skip short words
+                visual_keywords.append(word)
+        
+        visual_desc = ' '.join(visual_keywords[:10])  # Use first 10 meaningful words
+        
+        # Enhanced prompt for better quality
+        prompt = f"high quality, detailed, beautiful illustration, storybook style, {visual_desc}, professional digital art, vibrant colors, cinematic lighting, 4k, masterpiece"
         return prompt
     
     def _generate_with_hf(self, prompt: str) -> Image.Image:
@@ -58,8 +70,10 @@ class ImageGenerationService:
         payload = {
             "inputs": prompt,
             "parameters": {
-                "num_inference_steps": 20,
-                "guidance_scale": 7.5
+                "num_inference_steps": 50,  # More steps for better quality
+                "guidance_scale": 7.5,
+                "width": 1024,
+                "height": 1024
             }
         }
         
@@ -78,16 +92,41 @@ class ImageGenerationService:
             return self._create_default_image()
     
     def _create_default_image(self) -> Image.Image:
-        """Create beautiful default image"""
-        # Create image with beautiful color gradient
-        img = Image.new('RGB', (1200, 1600), color=(135, 206, 250))
+        """Create beautiful default image with gradient"""
+        from PIL import ImageFilter
+        
+        # Create larger image with gradient
+        width, height = 1200, 1600
+        img = Image.new('RGB', (width, height), color=(135, 206, 250))
         draw = ImageDraw.Draw(img)
         
-        # Draw decorative shapes
-        for i in range(5):
-            x = 100 + i * 200
-            y = 200 + i * 150
-            draw.ellipse([x-50, y-50, x+50, y+50], fill=(255, 182, 193, 100))
+        # Create gradient effect
+        for y in range(height):
+            # Gradient from light blue to purple
+            r = int(135 + (120 * y / height))
+            g = int(206 - (50 * y / height))
+            b = int(250 - (100 * y / height))
+            draw.line([(0, y), (width, y)], fill=(r, g, b))
+        
+        # Draw decorative elements
+        for i in range(8):
+            x = 150 + (i % 4) * 250
+            y = 200 + (i // 4) * 400
+            size = 80 + i * 10
+            # Draw circles with gradient
+            for j in range(size, 0, -10):
+                alpha = int(255 * (1 - j/size))
+                color = (255 - j, 182 + j//2, 193 + j//3)
+                draw.ellipse([x-j, y-j, x+j, y+j], outline=color, width=2)
+        
+        # Add some stars/sparkles
+        for i in range(20):
+            x = (i * 67) % width
+            y = (i * 89) % height
+            draw.ellipse([x-3, y-3, x+3, y+3], fill=(255, 255, 200))
+        
+        # Apply slight blur for smoother look
+        img = img.filter(ImageFilter.GaussianBlur(radius=1))
         
         return img
     
