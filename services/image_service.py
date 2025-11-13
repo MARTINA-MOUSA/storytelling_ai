@@ -150,19 +150,20 @@ class ImageGenerationService:
         text_font_size = 28
         
         try:
-            # Try to use fonts from system
+            # Try to use fonts from system with Arabic support
             import platform
             if platform.system() == "Windows":
-                # Try common fonts in Windows
-                fonts = [
-                    "C:/Windows/Fonts/arial.ttf",
-                    "C:/Windows/Fonts/tahoma.ttf",
-                    "C:/Windows/Fonts/calibri.ttf",
-                    "arial.ttf"
+                # Try Arabic-supporting fonts first, then fallback
+                arabic_fonts = [
+                    "C:/Windows/Fonts/arial.ttf",  # Arial supports Arabic
+                    "C:/Windows/Fonts/segoeui.ttf",  # Segoe UI - excellent Arabic support
+                    "C:/Windows/Fonts/tahoma.ttf",  # Tahoma - good Arabic support
+                    "C:/Windows/Fonts/calibri.ttf",  # Calibri supports Arabic
+                    "C:/Windows/Fonts/arialuni.ttf",  # Arial Unicode - full Unicode support
                 ]
                 title_font = None
                 text_font = None
-                for font_path in fonts:
+                for font_path in arabic_fonts:
                     try:
                         title_font = ImageFont.truetype(font_path, title_font_size)
                         text_font = ImageFont.truetype(font_path, text_font_size)
@@ -172,14 +173,16 @@ class ImageGenerationService:
                 if title_font is None:
                     raise Exception("No font found")
             else:
-                # Linux/Mac - try common fonts
-                fonts = [
-                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                    "/System/Library/Fonts/Helvetica.ttc"
+                # Linux/Mac - try common fonts with Arabic support
+                arabic_fonts = [
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Good Unicode support
+                    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                    "/System/Library/Fonts/Helvetica.ttc",
+                    "/System/Library/Fonts/Supplemental/Arial.ttf"
                 ]
                 title_font = None
                 text_font = None
-                for font_path in fonts:
+                for font_path in arabic_fonts:
                     try:
                         title_font = ImageFont.truetype(font_path, title_font_size)
                         text_font = ImageFont.truetype(font_path, text_font_size)
@@ -214,21 +217,40 @@ class ImageGenerationService:
         title_x = (img_width - title_width) // 2
         draw.text((title_x, text_y_start + 40), title_text, fill=(50, 50, 50), font=title_font)
         
-        # Write story (split into lines)
-        story_lines = self._wrap_text(story_text, img_width - 100, text_font, draw)
+        # Write story (split into lines) with proper text direction support
+        story_lines = self._wrap_text(story_text, img_width - 100, text_font, draw, language)
         y_offset = text_y_start + 140
         
         for line in story_lines:
             if y_offset + 50 > final_height - 40:
                 break
-            draw.text((50, y_offset), line, fill=(30, 30, 30), font=text_font)
+            # For Arabic, use right-to-left alignment
+            if language.lower() == "arabic":
+                # Calculate text width for right alignment
+                try:
+                    bbox = draw.textbbox((0, 0), line, font=text_font)
+                    text_width = bbox[2] - bbox[0]
+                    x_pos = img_width - 50 - text_width
+                except:
+                    x_pos = img_width - 50 - (len(line) * 15)
+                draw.text((x_pos, y_offset), line, fill=(30, 30, 30), font=text_font)
+            else:
+                draw.text((50, y_offset), line, fill=(30, 30, 30), font=text_font)
             y_offset += 42
         
         return final_image
     
-    def _wrap_text(self, text: str, max_width: int, font, draw: ImageDraw.Draw) -> list:
-        """Split text into lines based on available width"""
-        words = text.split()
+    def _wrap_text(self, text: str, max_width: int, font, draw: ImageDraw.Draw, language: str = "Arabic") -> list:
+        """Split text into lines based on available width with language support"""
+        # For Arabic, handle RTL text properly
+        if language.lower() == "arabic":
+            # Split by Arabic characters and spaces
+            import re
+            # Split by spaces and punctuation, keeping Arabic text together
+            words = re.findall(r'[\u0600-\u06FF]+|[^\s]+', text)
+        else:
+            words = text.split()
+        
         lines = []
         current_line = ""
         
@@ -237,13 +259,18 @@ class ImageGenerationService:
         temp_draw = ImageDraw.Draw(temp_img)
         
         for word in words:
-            test_line = current_line + " " + word if current_line else word
+            # For Arabic, join words with space; for English, use space
+            separator = " " if current_line else ""
+            test_line = current_line + separator + word
+            
             try:
                 bbox = temp_draw.textbbox((0, 0), test_line, font=font)
                 text_width = bbox[2] - bbox[0]
             except:
                 # Estimation method if calculation fails
-                text_width = len(test_line) * 15
+                # Arabic characters might be wider
+                char_width = 18 if language.lower() == "arabic" else 15
+                text_width = len(test_line) * char_width
             
             if text_width <= max_width:
                 current_line = test_line
