@@ -68,7 +68,7 @@ with st.sidebar:
     st.info("""
     For best results, add:
     - **GEMINI_API_KEY**: from Google AI Studio
-    - **HUGGINGFACE_API_KEY**: (optional) for better image generation
+    (Used for both story and image generation)
     """)
     
     # Project information
@@ -76,7 +76,7 @@ with st.sidebar:
     st.markdown("""
     This app uses:
     - 🤖 Google Gemini for story generation
-    - 🎨 Hugging Face for image generation
+    - 🎨 Google Imagen 4.0 for image generation
     - 🎯 Easy-to-use interactive interface
     """)
 

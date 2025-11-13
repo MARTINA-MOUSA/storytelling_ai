@@ -1,19 +1,27 @@
 """
-Image generation service for stories using Hugging Face API
+Image generation service for stories using Google Gemini Imagen API
 """
 import os
+import google.generativeai as genai
 import requests
 from PIL import Image, ImageDraw, ImageFont
 import io
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class ImageGenerationService:
     def __init__(self):
-        self.hf_token = os.getenv("HUGGINGFACE_API_KEY", "")
-        # Using better model for higher quality images
-        self.api_url = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
+        # Use Gemini API key (same as story generation)
+        self.api_key = os.getenv("GEMINI_API_KEY", "")
+        if not self.api_key:
+            print("Warning: GEMINI_API_KEY not found. Will use default images.")
+        else:
+            genai.configure(api_key=self.api_key)
+        # Using Gemini Imagen 4.0 for image generation
+        self.model_name = "imagen-4.0-generate-001"
+        self.api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateImages"
     
     def generate_story_image(self, story_text: str, user_name: str, language: str = "Arabic") -> Image.Image:
         """
@@ -30,9 +38,9 @@ class ImageGenerationService:
         # Extract detailed description from story for image generation
         prompt = self._extract_image_prompt(story_text, user_name)
         
-        # Generate base image
-        if self.hf_token:
-            base_image = self._generate_with_hf(prompt)
+        # Generate base image using Gemini Imagen
+        if self.api_key:
+            base_image = self._generate_with_gemini(prompt)
         else:
             # Use default image if no API key
             base_image = self._create_default_image()
@@ -73,51 +81,114 @@ class ImageGenerationService:
         
         return prompt
     
-    def _generate_with_hf(self, prompt: str) -> Image.Image:
-        """Generate image using Hugging Face API"""
-        headers = {}
-        if self.hf_token:
-            headers["Authorization"] = f"Bearer {self.hf_token}"
-        
-        payload = {
-            "inputs": prompt,
-            "parameters": {
-                "num_inference_steps": 50,  # More steps for better quality
-                "guidance_scale": 7.5,
-                "width": 1024,
-                "height": 1024
-            }
-        }
-        
+    def _generate_with_gemini(self, prompt: str) -> Image.Image:
+        """Generate image using Google Gemini Imagen API via REST API"""
         try:
-            response = requests.post(self.api_url, headers=headers, json=payload, timeout=60)
+            # Try using REST API first
+            headers = {
+                "Content-Type": "application/json",
+            }
+            
+            payload = {
+                "prompt": prompt,
+                "numberOfImages": 1,
+                "aspectRatio": "1:1",
+                "safetyFilterLevel": "block_some",
+                "personGeneration": "allow_all"
+            }
+            
+            # Make request to Imagen API
+            response = requests.post(
+                f"{self.api_url}?key={self.api_key}",
+                headers=headers,
+                json=payload,
+                timeout=120
+            )
             
             if response.status_code == 200:
-                image_bytes = response.content
-                # Check if response is actually an image
-                if image_bytes.startswith(b'\xff\xd8') or image_bytes.startswith(b'\x89PNG'):
-                    image = Image.open(io.BytesIO(image_bytes))
-                    # Resize to match expected dimensions
-                    if image.size != (1024, 1024):
-                        image = image.resize((1200, 1200), Image.Resampling.LANCZOS)
-                    return image
-                else:
-                    # Response might be JSON error
-                    print(f"API returned non-image response: {response.text[:200]}")
-                    return self._create_default_image()
-            elif response.status_code == 503:
-                # Model is loading, wait a bit and retry or use default
-                print("Hugging Face model is loading. Using default image.")
+                result = response.json()
+                
+                # Check for image in response
+                if 'generatedImages' in result and len(result['generatedImages']) > 0:
+                    # Get base64 encoded image
+                    image_data_b64 = result['generatedImages'][0].get('base64String', '')
+                    if image_data_b64:
+                        import base64
+                        image_bytes = base64.b64decode(image_data_b64)
+                        image = Image.open(io.BytesIO(image_bytes))
+                        # Resize if needed
+                        if image.size[0] < 1024 or image.size[1] < 1024:
+                            image = image.resize((1200, 1200), Image.Resampling.LANCZOS)
+                        return image
+                
+                # Try alternative response format
+                if 'images' in result and len(result['images']) > 0:
+                    image_data_b64 = result['images'][0].get('base64String', '')
+                    if image_data_b64:
+                        import base64
+                        image_bytes = base64.b64decode(image_data_b64)
+                        image = Image.open(io.BytesIO(image_bytes))
+                        if image.size[0] < 1024 or image.size[1] < 1024:
+                            image = image.resize((1200, 1200), Image.Resampling.LANCZOS)
+                        return image
+                
+                print(f"Unexpected response format: {list(result.keys())}")
                 return self._create_default_image()
             else:
-                # On failure, use default image
-                print(f"Hugging Face API error (status {response.status_code}): {response.text[:200]}")
-                return self._create_default_image()
+                print(f"Imagen API error (status {response.status_code}): {response.text[:500]}")
+                # Try fallback method using SDK
+                return self._generate_with_gemini_sdk(prompt)
+                
         except requests.exceptions.Timeout:
-            print("Image generation timeout. Using default image.")
-            return self._create_default_image()
+            print("Image generation timeout. Trying SDK method...")
+            return self._generate_with_gemini_sdk(prompt)
         except Exception as e:
-            print(f"Error generating image: {e}")
+            print(f"Error with REST API: {e}. Trying SDK method...")
+            return self._generate_with_gemini_sdk(prompt)
+    
+    def _generate_with_gemini_sdk(self, prompt: str) -> Image.Image:
+        """Fallback: Generate image using Google Generative AI SDK"""
+        try:
+            # Try using the SDK method
+            imagen_model = genai.GenerativeModel(self.model_name)
+            
+            # Generate image with the prompt
+            response = imagen_model.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": 0.4,
+                    "top_p": 0.95,
+                    "top_k": 40,
+                }
+            )
+            
+            # Try to extract image from various response formats
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                    for part in candidate.content.parts:
+                        # Check for inline data (image)
+                        if hasattr(part, 'inline_data'):
+                            image_data = part.inline_data.data
+                            image = Image.open(io.BytesIO(image_data))
+                            if image.size[0] < 1024 or image.size[1] < 1024:
+                                image = image.resize((1200, 1200), Image.Resampling.LANCZOS)
+                            return image
+                        # Check for text that might be base64
+                        if hasattr(part, 'text'):
+                            import base64
+                            try:
+                                image_data = base64.b64decode(part.text)
+                                image = Image.open(io.BytesIO(image_data))
+                                return image
+                            except:
+                                pass
+            
+            print("No image found in SDK response. Using default image.")
+            return self._create_default_image()
+            
+        except Exception as e:
+            print(f"Error generating image with Gemini SDK: {e}")
             return self._create_default_image()
     
     def _create_default_image(self) -> Image.Image:
