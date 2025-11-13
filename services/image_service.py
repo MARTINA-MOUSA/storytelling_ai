@@ -19,9 +19,29 @@ class ImageGenerationService:
             print("Warning: GEMINI_API_KEY not found. Will use default images.")
         else:
             genai.configure(api_key=self.api_key)
-        # Using Gemini Imagen 4.0 for image generation
-        self.model_name = "imagen-4.0-generate-001"
-        self.api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateImages"
+        # Using custom model for image generation
+        # Can use Gemini Imagen or custom API
+        self.model_name = os.getenv("IMAGE_MODEL", "imagen-4.0-generate-001")
+        self.custom_api_key = os.getenv("CUSTOM_IMAGE_API_KEY", "")
+        self.custom_model = os.getenv("CUSTOM_IMAGE_MODEL", "")
+        
+        # Build API URL based on model
+        if self.custom_model and self.custom_api_key:
+            # Use custom model (e.g., Hugging Face format)
+            # Format: https://api-inference.huggingface.co/models/{model}
+            if "huggingface.co" in self.custom_model or "/" in self.custom_model:
+                # If it's a full URL or Hugging Face model path
+                if self.custom_model.startswith("http"):
+                    self.api_url = self.custom_model
+                else:
+                    # Hugging Face model format: org/model-name
+                    self.api_url = f"https://api-inference.huggingface.co/models/{self.custom_model}"
+            else:
+                # Default to Hugging Face if just model name
+                self.api_url = f"https://api-inference.huggingface.co/models/{self.custom_model}"
+        else:
+            # Gemini Imagen API URL (if using Gemini)
+            self.api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateImages"
     
     def generate_story_image(self, story_text: str, user_name: str, language: str = "Arabic") -> Image.Image:
         """
@@ -38,8 +58,12 @@ class ImageGenerationService:
         # Extract detailed description from story for image generation
         prompt = self._extract_image_prompt(story_text, user_name)
         
-        # Generate base image using Gemini Imagen
-        if self.api_key:
+        # Generate base image
+        if self.custom_api_key and self.custom_model:
+            # Use custom API (e.g., Hugging Face, custom endpoint)
+            base_image = self._generate_with_custom_api(prompt)
+        elif self.api_key:
+            # Use Gemini Imagen
             base_image = self._generate_with_gemini(prompt)
         else:
             # Use default image if no API key
@@ -145,6 +169,80 @@ class ImageGenerationService:
         except Exception as e:
             print(f"Error with REST API: {e}. Trying SDK method...")
             return self._generate_with_gemini_sdk(prompt)
+    
+    def _generate_with_custom_api(self, prompt: str) -> Image.Image:
+        """Generate image using custom API (e.g., Hugging Face, custom endpoint, etc.)"""
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.custom_api_key}"
+            }
+            
+            # Try Hugging Face format first (most common)
+            payload = {
+                "inputs": prompt,
+                "parameters": {
+                    "num_inference_steps": 50,
+                    "guidance_scale": 7.5,
+                    "width": 1024,
+                    "height": 1024
+                }
+            }
+            
+            response = requests.post(
+                self.api_url,
+                headers=headers,
+                json=payload,
+                timeout=120
+            )
+            
+            if response.status_code == 200:
+                # Check if response is an image (binary)
+                content_type = response.headers.get('Content-Type', '')
+                if 'image' in content_type or response.content.startswith(b'\xff\xd8') or response.content.startswith(b'\x89PNG'):
+                    image = Image.open(io.BytesIO(response.content))
+                    if image.size[0] < 1024 or image.size[1] < 1024:
+                        image = image.resize((1200, 1200), Image.Resampling.LANCZOS)
+                    return image
+                
+                # Try JSON response with base64 image
+                try:
+                    result = response.json()
+                    # Check various possible response formats
+                    if 'image' in result:
+                        import base64
+                        image_data = base64.b64decode(result['image'])
+                        image = Image.open(io.BytesIO(image_data))
+                        return image
+                    elif 'generated_image' in result:
+                        import base64
+                        image_data = base64.b64decode(result['generated_image'])
+                        image = Image.open(io.BytesIO(image_data))
+                        return image
+                    elif isinstance(result, list) and len(result) > 0:
+                        # Some APIs return list with image data
+                        first_item = result[0]
+                        if 'image' in first_item:
+                            import base64
+                            image_data = base64.b64decode(first_item['image'])
+                            image = Image.open(io.BytesIO(image_data))
+                            return image
+                except Exception as json_error:
+                    print(f"Error parsing JSON response: {json_error}")
+            
+            elif response.status_code == 503:
+                # Model is loading
+                print("Model is loading. Please wait and try again.")
+                return self._create_default_image()
+            
+            print(f"Custom API error (status {response.status_code}): {response.text[:500]}")
+            return self._create_default_image()
+            
+        except Exception as e:
+            print(f"Error with custom API: {e}")
+            import traceback
+            traceback.print_exc()
+            return self._create_default_image()
     
     def _generate_with_gemini_sdk(self, prompt: str) -> Image.Image:
         """Fallback: Generate image using Google Generative AI SDK"""
