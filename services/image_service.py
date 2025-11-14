@@ -1,8 +1,7 @@
 """
-Image generation service for stories using Google Gemini Imagen API
+Image generation service for stories using Clipdrop API
 """
 import os
-import google.generativeai as genai
 import requests
 from PIL import Image, ImageDraw, ImageFont
 import io
@@ -13,35 +12,31 @@ load_dotenv()
 
 class ImageGenerationService:
     def __init__(self):
-        # Use Gemini API key (same as story generation)
-        self.api_key = os.getenv("GEMINI_API_KEY", "")
-        if not self.api_key:
-            print("Warning: GEMINI_API_KEY not found. Will use default images.")
-        else:
-            genai.configure(api_key=self.api_key)
-        # Using custom model for image generation
-        # Can use Gemini Imagen or custom API
-        self.model_name = os.getenv("IMAGE_MODEL", "imagen-4.0-generate-001")
+        # Using Clipdrop API for image generation (primary method)
         self.custom_api_key = os.getenv("CUSTOM_IMAGE_API_KEY", "")
         self.custom_model = os.getenv("CUSTOM_IMAGE_MODEL", "")
         
-        # Build API URL based on model
-        if self.custom_model and self.custom_api_key:
+        # Check if using Clipdrop API (default if API key is provided)
+        self.use_clipdrop = os.getenv("USE_CLIPDROP", "true").lower() == "true"
+        if self.use_clipdrop and self.custom_api_key:
+            self.api_url = "https://clipdrop-api.co/text-to-image/v1"
+        elif self.custom_model and self.custom_api_key:
             # Use custom model (e.g., Hugging Face format)
-            # Format: https://api-inference.huggingface.co/models/{model}
+            # Format: https://router.huggingface.co/hf-inference/models/{model}
             if "huggingface.co" in self.custom_model or "/" in self.custom_model:
-                # If it's a full URL or Hugging Face model path
+                # If it's a full URL
                 if self.custom_model.startswith("http"):
                     self.api_url = self.custom_model
                 else:
                     # Hugging Face model format: org/model-name
-                    self.api_url = f"https://api-inference.huggingface.co/models/{self.custom_model}"
+                    # Use new endpoint
+                    self.api_url = f"https://router.huggingface.co/hf-inference/models/{self.custom_model}"
             else:
                 # Default to Hugging Face if just model name
-                self.api_url = f"https://api-inference.huggingface.co/models/{self.custom_model}"
+                self.api_url = f"https://router.huggingface.co/hf-inference/models/{self.custom_model}"
         else:
-            # Gemini Imagen API URL (if using Gemini)
-            self.api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateImages"
+            # No API configured - will use default image
+            self.api_url = None
     
     def generate_story_image(self, story_text: str, user_name: str, language: str = "Arabic") -> Image.Image:
         """
@@ -59,12 +54,12 @@ class ImageGenerationService:
         prompt = self._extract_image_prompt(story_text, user_name)
         
         # Generate base image
-        if self.custom_api_key and self.custom_model:
+        if self.use_clipdrop and self.custom_api_key:
+            # Use Clipdrop API (primary method)
+            base_image = self._generate_with_clipdrop(prompt)
+        elif self.custom_api_key and self.custom_model:
             # Use custom API (e.g., Hugging Face, custom endpoint)
             base_image = self._generate_with_custom_api(prompt)
-        elif self.api_key:
-            # Use Gemini Imagen
-            base_image = self._generate_with_gemini(prompt)
         else:
             # Use default image if no API key
             base_image = self._create_default_image()
@@ -105,70 +100,47 @@ class ImageGenerationService:
         
         return prompt
     
-    def _generate_with_gemini(self, prompt: str) -> Image.Image:
-        """Generate image using Google Gemini Imagen API via REST API"""
+    def _generate_with_clipdrop(self, prompt: str) -> Image.Image:
+        """Generate image using Clipdrop API"""
         try:
-            # Try using REST API first
             headers = {
-                "Content-Type": "application/json",
+                'x-api-key': self.custom_api_key
             }
             
-            payload = {
-                "prompt": prompt,
-                "numberOfImages": 1,
-                "aspectRatio": "1:1",
-                "safetyFilterLevel": "block_some",
-                "personGeneration": "allow_all"
+            # Clipdrop uses multipart/form-data with files
+            files = {
+                'prompt': (None, prompt, 'text/plain')
             }
             
-            # Make request to Imagen API
             response = requests.post(
-                f"{self.api_url}?key={self.api_key}",
+                self.api_url,
                 headers=headers,
-                json=payload,
+                files=files,
                 timeout=120
             )
             
-            if response.status_code == 200:
-                result = response.json()
-                
-                # Check for image in response
-                if 'generatedImages' in result and len(result['generatedImages']) > 0:
-                    # Get base64 encoded image
-                    image_data_b64 = result['generatedImages'][0].get('base64String', '')
-                    if image_data_b64:
-                        import base64
-                        image_bytes = base64.b64decode(image_data_b64)
-                        image = Image.open(io.BytesIO(image_bytes))
-                        # Resize if needed
-                        if image.size[0] < 1024 or image.size[1] < 1024:
-                            image = image.resize((1200, 1200), Image.Resampling.LANCZOS)
-                        return image
-                
-                # Try alternative response format
-                if 'images' in result and len(result['images']) > 0:
-                    image_data_b64 = result['images'][0].get('base64String', '')
-                    if image_data_b64:
-                        import base64
-                        image_bytes = base64.b64decode(image_data_b64)
-                        image = Image.open(io.BytesIO(image_bytes))
-                        if image.size[0] < 1024 or image.size[1] < 1024:
-                            image = image.resize((1200, 1200), Image.Resampling.LANCZOS)
-                        return image
-                
-                print(f"Unexpected response format: {list(result.keys())}")
-                return self._create_default_image()
+            if response.ok:
+                # Response contains image bytes directly
+                image = Image.open(io.BytesIO(response.content))
+                # Resize if needed
+                if image.size[0] < 1024 or image.size[1] < 1024:
+                    image = image.resize((1200, 1200), Image.Resampling.LANCZOS)
+                return image
             else:
-                print(f"Imagen API error (status {response.status_code}): {response.text[:500]}")
-                # Try fallback method using SDK
-                return self._generate_with_gemini_sdk(prompt)
+                print(f"Clipdrop API error (status {response.status_code}): {response.text[:500]}")
+                response.raise_for_status()
+                return self._create_default_image()
                 
-        except requests.exceptions.Timeout:
-            print("Image generation timeout. Trying SDK method...")
-            return self._generate_with_gemini_sdk(prompt)
+        except requests.exceptions.HTTPError as e:
+            print(f"Clipdrop HTTP error: {e}")
+            if hasattr(e.response, 'text'):
+                print(f"Error details: {e.response.text[:500]}")
+            return self._create_default_image()
         except Exception as e:
-            print(f"Error with REST API: {e}. Trying SDK method...")
-            return self._generate_with_gemini_sdk(prompt)
+            print(f"Error with Clipdrop API: {e}")
+            import traceback
+            traceback.print_exc()
+            return self._create_default_image()
     
     def _generate_with_custom_api(self, prompt: str) -> Image.Image:
         """Generate image using custom API (e.g., Hugging Face, custom endpoint, etc.)"""
@@ -178,16 +150,30 @@ class ImageGenerationService:
                 "Authorization": f"Bearer {self.custom_api_key}"
             }
             
-            # Try Hugging Face format first (most common)
-            payload = {
-                "inputs": prompt,
-                "parameters": {
-                    "num_inference_steps": 50,
-                    "guidance_scale": 7.5,
-                    "width": 1024,
-                    "height": 1024
+            # Try Hugging Face format (new endpoint format)
+            # New endpoint uses different payload structure
+            if "router.huggingface.co" in self.api_url:
+                # New Hugging Face endpoint format
+                payload = {
+                    "inputs": prompt,
+                    "parameters": {
+                        "num_inference_steps": 50,
+                        "guidance_scale": 7.5,
+                        "width": 1024,
+                        "height": 1024
+                    }
                 }
-            }
+            else:
+                # Custom API format
+                payload = {
+                    "inputs": prompt,
+                    "parameters": {
+                        "num_inference_steps": 50,
+                        "guidance_scale": 7.5,
+                        "width": 1024,
+                        "height": 1024
+                    }
+                }
             
             response = requests.post(
                 self.api_url,
@@ -242,51 +228,6 @@ class ImageGenerationService:
             print(f"Error with custom API: {e}")
             import traceback
             traceback.print_exc()
-            return self._create_default_image()
-    
-    def _generate_with_gemini_sdk(self, prompt: str) -> Image.Image:
-        """Fallback: Generate image using Google Generative AI SDK"""
-        try:
-            # Try using the SDK method
-            imagen_model = genai.GenerativeModel(self.model_name)
-            
-            # Generate image with the prompt
-            response = imagen_model.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": 0.4,
-                    "top_p": 0.95,
-                    "top_k": 40,
-                }
-            )
-            
-            # Try to extract image from various response formats
-            if hasattr(response, 'candidates') and response.candidates:
-                candidate = response.candidates[0]
-                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
-                    for part in candidate.content.parts:
-                        # Check for inline data (image)
-                        if hasattr(part, 'inline_data'):
-                            image_data = part.inline_data.data
-                            image = Image.open(io.BytesIO(image_data))
-                            if image.size[0] < 1024 or image.size[1] < 1024:
-                                image = image.resize((1200, 1200), Image.Resampling.LANCZOS)
-                            return image
-                        # Check for text that might be base64
-                        if hasattr(part, 'text'):
-                            import base64
-                            try:
-                                image_data = base64.b64decode(part.text)
-                                image = Image.open(io.BytesIO(image_data))
-                                return image
-                            except:
-                                pass
-            
-            print("No image found in SDK response. Using default image.")
-            return self._create_default_image()
-            
-        except Exception as e:
-            print(f"Error generating image with Gemini SDK: {e}")
             return self._create_default_image()
     
     def _create_default_image(self) -> Image.Image:

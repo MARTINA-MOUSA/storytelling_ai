@@ -16,14 +16,14 @@ An interactive application for generating custom short stories using Google Gemi
 
 - **Streamlit**: Interactive user interface
 - **Google Gemini AI**: Text and story generation
-- **Hugging Face API**: Image generation (optional)
-- **Pillow**: Image processing and text overlay
+- **Clipdrop API**: High-quality image generation
+- **Pillow**: Image processing
 
 ## 📋 Requirements
 
 - Python 3.8 or higher
-- Google Gemini API key (required)
-- Hugging Face API key (optional - for better image generation)
+- Google Gemini API key (required for story generation)
+- Clipdrop API key (required for image generation)
 
 ## 🚀 Installation & Setup
 
