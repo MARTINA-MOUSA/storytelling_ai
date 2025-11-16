@@ -5,12 +5,27 @@ import os
 import google.generativeai as genai
 from dotenv import load_dotenv
 
+# Load from .env file if it exists (for local development)
 load_dotenv()
 
 class GeminiStoryService:
     def __init__(self):
-        # Try to load from environment variables (works for both .env file and cloud platforms)
-        api_key = os.getenv("GEMINI_API_KEY")
+        # Try to load from environment variables
+        # This works for:
+        # 1. Streamlit Cloud Secrets (automatically available as env vars)
+        # 2. Local .env file (via load_dotenv())
+        # 3. System environment variables
+        api_key = os.getenv("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        
+        if not api_key:
+            # Try to get from Streamlit secrets if available
+            try:
+                import streamlit as st
+                if hasattr(st, 'secrets') and 'GEMINI_API_KEY' in st.secrets:
+                    api_key = st.secrets['GEMINI_API_KEY']
+            except:
+                pass
+        
         if not api_key:
             raise ValueError(
                 "GEMINI_API_KEY not found. "
