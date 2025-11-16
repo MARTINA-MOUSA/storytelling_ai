@@ -219,54 +219,48 @@ if st.button("✨ Generate Story", type="primary"):
                 progress_bar.progress(100)
                 status_text.text("✅ Complete!")
                 
-                # Display results
-                st.success("🎉 Your story has been generated successfully!")
-                
-                # Display image
-                caption = f"{user_name}'s Story" if language == "English" else f"قصة {user_name}"
-                st.image(story_image, caption=caption)
-                
-                # Display story as text
-                st.markdown("### 📖 The Story:")
-                st.markdown(f'<div class="story-container">{story}</div>', unsafe_allow_html=True)
-                
-                # Download button
-                img_buffer = io.BytesIO()
-                story_image.save(img_buffer, format='PNG')
-                img_buffer.seek(0)
-                
-                file_name = f"{user_name}_story.png" if language == "English" else f"قصة_{user_name}.png"
-                st.download_button(
-                    label="💾 Download Image",
-                    data=img_buffer,
-                    file_name=file_name,
-                    mime="image/png"
-                )
-                
                 # Save to session
                 st.session_state['last_story'] = story
                 st.session_state['last_image'] = story_image
                 st.session_state['last_user_name'] = user_name
                 st.session_state['last_language'] = language
                 
+                # Force rerun to show the story
+                st.rerun()
+                
             except Exception as e:
                 st.error(f"❌ An error occurred: {str(e)}")
                 st.info("Check your API keys settings in environment variables or .env file")
 
-# Display last generated story
+# Display generated story (image and text side by side)
 if 'last_story' in st.session_state:
     st.markdown("---")
-    st.header("📚 Last Generated Story")
+    st.success("🎉 Your story has been generated successfully!")
     
+    # Display image and story side by side
     col1, col2 = st.columns([1, 2])
     
     with col1:
         caption = f"{st.session_state['last_user_name']}'s Story" if st.session_state.get('last_language', 'English') == "English" else f"قصة {st.session_state['last_user_name']}"
-        st.image(st.session_state['last_image'], caption=caption)
+        st.image(st.session_state['last_image'], caption=caption, use_container_width=True)
+        
+        # Download button below image
+        img_buffer = io.BytesIO()
+        st.session_state['last_image'].save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        
+        file_name = f"{st.session_state['last_user_name']}_story.png" if st.session_state.get('last_language', 'English') == "English" else f"قصة_{st.session_state['last_user_name']}.png"
+        st.download_button(
+            label="💾 Download Image",
+            data=img_buffer,
+            file_name=file_name,
+            mime="image/png",
+            use_container_width=True
+        )
     
     with col2:
         story_title = f"{st.session_state['last_user_name']}'s Story" if st.session_state.get('last_language', 'English') == "English" else f"قصة {st.session_state['last_user_name']}"
-        st.markdown(f"### {story_title}")
+        st.markdown(f"### 📖 {story_title}")
         st.markdown(f'<div class="story-container">{st.session_state["last_story"]}</div>', unsafe_allow_html=True)
 
 # Footer
