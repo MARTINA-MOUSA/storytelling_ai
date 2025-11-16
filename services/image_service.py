@@ -12,41 +12,12 @@ load_dotenv()
 
 class ImageGenerationService:
     def __init__(self):
-        # Try to load from multiple sources (same as gemini_service)
+        # Load from environment variables
+        # (For streamlit_app.py, these are set from Streamlit Secrets)
+        # (For local development, these come from .env or config.py)
         self.custom_api_key = os.getenv("CUSTOM_IMAGE_API_KEY", "")
         self.custom_model = os.getenv("CUSTOM_IMAGE_MODEL", "")
         use_clipdrop_str = os.getenv("USE_CLIPDROP", "true")
-        
-        # Try Streamlit secrets
-        if not self.custom_api_key:
-            try:
-                import streamlit as st
-                if hasattr(st, 'secrets'):
-                    if 'CUSTOM_IMAGE_API_KEY' in st.secrets:
-                        self.custom_api_key = st.secrets['CUSTOM_IMAGE_API_KEY']
-                    if 'USE_CLIPDROP' in st.secrets:
-                        use_clipdrop_str = str(st.secrets['USE_CLIPDROP'])
-            except:
-                pass
-        
-        # Try config.py file (for local testing)
-        if not self.custom_api_key:
-            try:
-                import sys
-                from pathlib import Path
-                project_root = Path(__file__).parent.parent
-                config_path = project_root / "config.py"
-                if config_path.exists():
-                    import importlib.util
-                    spec = importlib.util.spec_from_file_location("config", config_path)
-                    config = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(config)
-                    if hasattr(config, 'CUSTOM_IMAGE_API_KEY'):
-                        self.custom_api_key = config.CUSTOM_IMAGE_API_KEY
-                    if hasattr(config, 'USE_CLIPDROP'):
-                        use_clipdrop_str = str(config.USE_CLIPDROP)
-            except:
-                pass
         
         # Check if using Clipdrop API (default if API key is provided)
         self.use_clipdrop = use_clipdrop_str.lower() == "true"

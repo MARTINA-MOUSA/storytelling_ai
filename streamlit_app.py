@@ -15,25 +15,19 @@ sys.path.insert(0, str(project_root))
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-# Load config.py if it exists (for local testing)
+# Load API keys from Streamlit Secrets (for Streamlit Cloud)
 # This sets environment variables before services are initialized
 try:
-    config_path = project_root / "config.py"
-    if config_path.exists():
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("config", config_path)
-        config = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(config)
-        
-        # Set environment variables from config.py
-        if hasattr(config, 'GEMINI_API_KEY') and config.GEMINI_API_KEY:
-            os.environ['GEMINI_API_KEY'] = config.GEMINI_API_KEY
-        if hasattr(config, 'CUSTOM_IMAGE_API_KEY') and config.CUSTOM_IMAGE_API_KEY:
-            os.environ['CUSTOM_IMAGE_API_KEY'] = config.CUSTOM_IMAGE_API_KEY
-        if hasattr(config, 'USE_CLIPDROP'):
-            os.environ['USE_CLIPDROP'] = str(config.USE_CLIPDROP)
+    if hasattr(st, 'secrets'):
+        # Read from Streamlit Secrets and set as environment variables
+        if 'GEMINI_API_KEY' in st.secrets:
+            os.environ['GEMINI_API_KEY'] = st.secrets['GEMINI_API_KEY']
+        if 'CUSTOM_IMAGE_API_KEY' in st.secrets:
+            os.environ['CUSTOM_IMAGE_API_KEY'] = st.secrets['CUSTOM_IMAGE_API_KEY']
+        if 'USE_CLIPDROP' in st.secrets:
+            os.environ['USE_CLIPDROP'] = str(st.secrets['USE_CLIPDROP'])
 except Exception as e:
-    # Silently fail if config.py doesn't exist or has errors
+    # Silently fail if secrets don't exist
     pass
 
 from services.gemini_service import GeminiStoryService
@@ -122,32 +116,21 @@ if error:
     st.error(f"❌ Initialization error: {error}")
     
     # Debug: Show what's available
-    with st.expander("🔍 Debug Info - Check what's available"):
-        st.write("**Environment Variables:**")
-        env_key = os.getenv("GEMINI_API_KEY")
-        st.write(f"- GEMINI_API_KEY in env: {'✅ Found' if env_key else '❌ Not found'}")
-        
-        st.write("\n**Streamlit Secrets:**")
+    with st.expander("🔍 Debug Info - Check Streamlit Secrets"):
+        st.write("**Streamlit Secrets:**")
         try:
             if hasattr(st, 'secrets'):
-                if hasattr(st.secrets, 'get'):
-                    secrets_key = st.secrets.get('GEMINI_API_KEY')
-                    st.write(f"- GEMINI_API_KEY in secrets: {'✅ Found' if secrets_key else '❌ Not found'}")
-                    if secrets_key:
-                        st.write(f"- Key preview: {secrets_key[:10]}...")
+                if 'GEMINI_API_KEY' in st.secrets:
+                    secrets_key = st.secrets['GEMINI_API_KEY']
+                    st.write(f"- ✅ GEMINI_API_KEY found in secrets")
+                    st.write(f"- Key preview: {secrets_key[:10]}...")
                 else:
-                    st.write("- Secrets object exists but format unknown")
-                    st.write(f"- Secrets type: {type(st.secrets)}")
-                    if isinstance(st.secrets, dict):
-                        st.write(f"- Available keys: {list(st.secrets.keys())[:10]}")
+                    st.write("- ❌ GEMINI_API_KEY not found in secrets")
+                    st.write(f"- Available keys in secrets: {list(st.secrets.keys())}")
             else:
                 st.write("- ❌ Streamlit secrets not available")
         except Exception as e:
             st.write(f"- Error checking secrets: {e}")
-        
-        st.write("\n**Config File:**")
-        config_path = project_root / "config.py"
-        st.write(f"- config.py exists: {'✅ Yes' if config_path.exists() else '❌ No'}")
     
     st.info("""
     **How to fix:**
@@ -157,15 +140,13 @@ if error:
     2. Add exactly this format:
        ```toml
        GEMINI_API_KEY = "your_key_here"
+       CUSTOM_IMAGE_API_KEY = "your_image_key_here"
+       USE_CLIPDROP = "true"
        ```
     3. **Important:** Use `=` with spaces and quotes `"..."`
     4. Click "Save"
     5. Wait 30-60 seconds, then click "Reboot app" in Settings
     6. Reload the page
-    
-    **For local development:**
-    - Option 1: Create a `.env` file: `GEMINI_API_KEY=your_key_here`
-    - Option 2: Create a `config.py` file: `GEMINI_API_KEY = "your_key_here"`
     """)
     st.stop()
 
