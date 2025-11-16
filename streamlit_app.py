@@ -120,14 +120,48 @@ gemini_service, image_service, error = init_services()
 
 if error:
     st.error(f"❌ Initialization error: {error}")
+    
+    # Debug: Show what's available
+    with st.expander("🔍 Debug Info - Check what's available"):
+        st.write("**Environment Variables:**")
+        env_key = os.getenv("GEMINI_API_KEY")
+        st.write(f"- GEMINI_API_KEY in env: {'✅ Found' if env_key else '❌ Not found'}")
+        
+        st.write("\n**Streamlit Secrets:**")
+        try:
+            if hasattr(st, 'secrets'):
+                if hasattr(st.secrets, 'get'):
+                    secrets_key = st.secrets.get('GEMINI_API_KEY')
+                    st.write(f"- GEMINI_API_KEY in secrets: {'✅ Found' if secrets_key else '❌ Not found'}")
+                    if secrets_key:
+                        st.write(f"- Key preview: {secrets_key[:10]}...")
+                else:
+                    st.write("- Secrets object exists but format unknown")
+                    st.write(f"- Secrets type: {type(st.secrets)}")
+                    if isinstance(st.secrets, dict):
+                        st.write(f"- Available keys: {list(st.secrets.keys())[:10]}")
+            else:
+                st.write("- ❌ Streamlit secrets not available")
+        except Exception as e:
+            st.write(f"- Error checking secrets: {e}")
+        
+        st.write("\n**Config File:**")
+        config_path = project_root / "config.py"
+        st.write(f"- config.py exists: {'✅ Yes' if config_path.exists() else '❌ No'}")
+    
     st.info("""
     **How to fix:**
     
     **For Streamlit Cloud:**
     1. Go to Settings (⋮) → Secrets
-    2. Add: `GEMINI_API_KEY = "your_key_here"`
-    3. Click "Save"
-    4. The app will restart automatically
+    2. Add exactly this format:
+       ```toml
+       GEMINI_API_KEY = "your_key_here"
+       ```
+    3. **Important:** Use `=` with spaces and quotes `"..."`
+    4. Click "Save"
+    5. Wait 30-60 seconds, then click "Reboot app" in Settings
+    6. Reload the page
     
     **For local development:**
     - Option 1: Create a `.env` file: `GEMINI_API_KEY=your_key_here`
