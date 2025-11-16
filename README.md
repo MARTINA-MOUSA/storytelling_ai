@@ -2,6 +2,8 @@
 
 An interactive application for generating custom short stories using Google Gemini AI with automatic image generation.
 
+> 🌐 **Want to deploy online?** Check out [DEPLOY_ONLINE.md](DEPLOY_ONLINE.md) for easy deployment guides!
+
 ## ✨ Features
 
 - 🎯 **Interactive Story Generation**: Create custom stories based on your choices

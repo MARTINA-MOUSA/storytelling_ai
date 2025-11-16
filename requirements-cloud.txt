@@ -1,0 +1,9 @@
+# Lightweight requirements for cloud deployment (Streamlit Cloud, etc.)
+# This file removes heavy dependencies that aren't needed for API-based image generation
+
+streamlit>=1.31.0
+google-generativeai>=0.3.2
+pillow>=10.3.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+
