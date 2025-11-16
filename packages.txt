@@ -1,2 +1,0 @@
-# System packages - not needed for Streamlit Cloud
-# This file is for platforms that need system packages
