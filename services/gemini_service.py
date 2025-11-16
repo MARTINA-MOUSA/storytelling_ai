@@ -9,9 +9,14 @@ load_dotenv()
 
 class GeminiStoryService:
     def __init__(self):
+        # Try to load from environment variables (works for both .env file and cloud platforms)
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in .env file")
+            raise ValueError(
+                "GEMINI_API_KEY not found. "
+                "Please add it in environment variables or .env file. "
+                "For Streamlit Cloud: Settings → Secrets → Add GEMINI_API_KEY"
+            )
         
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel('gemini-2.5-flash')

@@ -94,7 +94,19 @@ gemini_service, image_service, error = init_services()
 
 if error:
     st.error(f"❌ Initialization error: {error}")
-    st.info("Make sure to add GEMINI_API_KEY in .env file")
+    st.info("""
+    **How to fix:**
+    
+    **For Streamlit Cloud:**
+    1. Go to Settings (⋮) → Secrets
+    2. Add: `GEMINI_API_KEY = "your_key_here"`
+    3. Click "Save"
+    4. The app will restart automatically
+    
+    **For local development:**
+    - Create a `.env` file in the project root
+    - Add: `GEMINI_API_KEY=your_key_here`
+    """)
     st.stop()
 
 # Input form
