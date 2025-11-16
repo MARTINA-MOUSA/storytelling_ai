@@ -10,11 +10,11 @@ load_dotenv()
 
 class GeminiStoryService:
     def __init__(self):
-        # Try to load from environment variables
-        # This works for:
-        # 1. Streamlit Cloud Secrets (automatically available as env vars)
-        # 2. Local .env file (via load_dotenv())
-        # 3. System environment variables
+        # Try to load from multiple sources (in order of priority):
+        # 1. Environment variables (from .env file or system)
+        # 2. Streamlit secrets (for Streamlit Cloud)
+        # 3. config.py file (for local testing - NOT recommended for production)
+        
         api_key = os.getenv("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
         
         if not api_key:
@@ -27,10 +27,30 @@ class GeminiStoryService:
                 pass
         
         if not api_key:
+            # Try to get from config.py file (for local testing only)
+            try:
+                import sys
+                from pathlib import Path
+                project_root = Path(__file__).parent.parent
+                config_path = project_root / "config.py"
+                if config_path.exists():
+                    import importlib.util
+                    spec = importlib.util.spec_from_file_location("config", config_path)
+                    config = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(config)
+                    if hasattr(config, 'GEMINI_API_KEY') and config.GEMINI_API_KEY:
+                        api_key = config.GEMINI_API_KEY
+            except Exception as e:
+                # Silently fail if config.py doesn't exist or has errors
+                pass
+        
+        if not api_key:
             raise ValueError(
                 "GEMINI_API_KEY not found. "
-                "Please add it in environment variables or .env file. "
-                "For Streamlit Cloud: Settings → Secrets → Add GEMINI_API_KEY"
+                "Please add it in one of these ways:\n"
+                "1. Create .env file: GEMINI_API_KEY=your_key\n"
+                "2. Create config.py: GEMINI_API_KEY = 'your_key'\n"
+                "3. For Streamlit Cloud: Settings → Secrets → Add GEMINI_API_KEY"
             )
         
         genai.configure(api_key=api_key)
