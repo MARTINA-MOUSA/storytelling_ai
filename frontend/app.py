@@ -10,6 +10,27 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+# Load config.py if it exists (for local testing)
+# This sets environment variables before services are initialized
+try:
+    config_path = project_root / "config.py"
+    if config_path.exists():
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("config", config_path)
+        config = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config)
+        
+        # Set environment variables from config.py
+        if hasattr(config, 'GEMINI_API_KEY') and config.GEMINI_API_KEY:
+            os.environ['GEMINI_API_KEY'] = config.GEMINI_API_KEY
+        if hasattr(config, 'CUSTOM_IMAGE_API_KEY') and config.CUSTOM_IMAGE_API_KEY:
+            os.environ['CUSTOM_IMAGE_API_KEY'] = config.CUSTOM_IMAGE_API_KEY
+        if hasattr(config, 'USE_CLIPDROP'):
+            os.environ['USE_CLIPDROP'] = str(config.USE_CLIPDROP)
+except Exception as e:
+    # Silently fail if config.py doesn't exist or has errors
+    pass
+
 from services.gemini_service import GeminiStoryService
 from services.image_service import ImageGenerationService
 from PIL import Image
@@ -104,8 +125,8 @@ if error:
     4. The app will restart automatically
     
     **For local development:**
-    - Create a `.env` file in the project root
-    - Add: `GEMINI_API_KEY=your_key_here`
+    - Option 1: Create a `.env` file: `GEMINI_API_KEY=your_key_here`
+    - Option 2: Create a `config.py` file: `GEMINI_API_KEY = "your_key_here"`
     """)
     st.stop()
 
