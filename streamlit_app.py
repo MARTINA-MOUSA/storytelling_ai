@@ -48,11 +48,17 @@ st.markdown("""
 <style>
     .main-header {
         text-align: center;
-        color: #1f77b4;
+        color: #000000;
         padding: 20px;
         background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
         border-radius: 10px;
         margin-bottom: 30px;
+    }
+    .main-header h1 {
+        color: #000000;
+    }
+    .main-header p {
+        color: #000000;
     }
     .story-container {
         background-color: #f8f9fa;
